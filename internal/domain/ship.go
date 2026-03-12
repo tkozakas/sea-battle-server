@@ -72,14 +72,11 @@ func (s *Ship) Cells() []Point {
 }
 
 func (s *Ship) Hit(p Point) error {
-	if !s.IsHit(p) && !s.containsCell(p) {
+	if !s.containsCell(p) {
 		return ErrOutOfBounds
 	}
 	if s.hitCells[p] {
 		return ErrAlreadyFired
-	}
-	if !s.containsCell(p) {
-		return ErrOutOfBounds
 	}
 	s.hitCells[p] = true
 	return nil
@@ -125,4 +122,23 @@ func (s *Ship) AdjacentCells() []Point {
 		result = append(result, p)
 	}
 	return result
+}
+
+func (s *Ship) DeepCopy() *Ship {
+	cells := make([]Point, len(s.cells))
+	copy(cells, s.cells)
+
+	hitCells := make(map[Point]bool, len(s.hitCells))
+	for k, v := range s.hitCells {
+		hitCells[k] = v
+	}
+
+	return &Ship{
+		Type:        s.Type,
+		Size:        s.Size,
+		Origin:      s.Origin,
+		Orientation: s.Orientation,
+		cells:       cells,
+		hitCells:    hitCells,
+	}
 }

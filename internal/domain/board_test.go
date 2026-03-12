@@ -198,3 +198,30 @@ func TestAllShipsSunk(t *testing.T) {
 		t.Error("all ships should be sunk")
 	}
 }
+
+func TestBoardDeepCopy(t *testing.T) {
+	b := NewBoard()
+	ship := mustShip(t, Destroyer, 0, 0, Horizontal)
+	_ = b.PlaceShip(ship)
+	_, _ = b.ReceiveShot(Point{0, 0})
+
+	cp := b.DeepCopy()
+
+	if cp.Grid[0][0] != b.Grid[0][0] {
+		t.Error("copy grid should match original")
+	}
+
+	cp.Grid[0][0] = CellMiss
+	if b.Grid[0][0] == CellMiss {
+		t.Error("modifying copy grid should not affect original")
+	}
+
+	if len(cp.Ships) != len(b.Ships) {
+		t.Errorf("copy ship count = %d, want %d", len(cp.Ships), len(b.Ships))
+	}
+
+	_ = cp.Ships[0].Hit(Point{1, 0})
+	if b.Ships[0].IsHit(Point{1, 0}) {
+		t.Error("hitting copy ship should not affect original")
+	}
+}

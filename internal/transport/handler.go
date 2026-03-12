@@ -2,9 +2,11 @@ package transport
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"log/slog"
-	"math/rand"
+	"math/big"
 	"net/http"
 	"sync"
 	"time"
@@ -12,13 +14,9 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/go-chi/chi/v5"
+	"github.com/tkozakas/sea-battle-server/internal/config"
 	"github.com/tkozakas/sea-battle-server/internal/domain"
 	"github.com/tkozakas/sea-battle-server/internal/service"
-)
-
-const (
-	turnTimeout  = 30 * time.Second
-	pingInterval = 15 * time.Second
 )
 
 type connEntry struct {
@@ -26,17 +24,28 @@ type connEntry struct {
 }
 
 type Handler struct {
-	service     *service.GameService
-	mu          sync.RWMutex
-	connections map[string][2]*connEntry
-	turnTimers  map[string]*time.Timer
+	service        *service.GameService
+	mu             sync.RWMutex
+	timerMu        sync.Mutex
+	connections    map[string][2]*connEntry
+	turnTimers     map[string]*time.Timer
+	turnTimeout    time.Duration
+	reconnectGrace time.Duration
+	pingInterval   time.Duration
+	writeTimeout   time.Duration
+	allowedOrigins []string
 }
 
-func NewHandler(svc *service.GameService) *Handler {
+func NewHandler(svc *service.GameService, cfg *config.Config) *Handler {
 	return &Handler{
-		service:     svc,
-		connections: make(map[string][2]*connEntry),
-		turnTimers:  make(map[string]*time.Timer),
+		service:        svc,
+		connections:    make(map[string][2]*connEntry),
+		turnTimers:     make(map[string]*time.Timer),
+		turnTimeout:    cfg.TurnTimeout,
+		reconnectGrace: cfg.ReconnectGrace,
+		pingInterval:   cfg.PingInterval,
+		writeTimeout:   cfg.WriteTimeout,
+		allowedOrigins: cfg.AllowedOrigins,
 	}
 }
 
@@ -49,7 +58,12 @@ func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleCreateGame(w http.ResponseWriter, r *http.Request) {
 	creatorID := r.URL.Query().Get("player_id")
 	if creatorID == "" {
-		creatorID = generatePlayerID()
+		var err error
+		creatorID, err = generatePlayerID()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	code, err := h.service.CreateGame(creatorID)
@@ -69,7 +83,7 @@ func (h *Handler) HandleCreateGame(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleGetGame(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 	game, err := h.service.GetGame(code)
-	if err == domain.ErrGameNotFound {
+	if errors.Is(err, domain.ErrGameNotFound) {
 		http.Error(w, "game not found", http.StatusNotFound)
 		return
 	}
@@ -94,9 +108,14 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true,
-	})
+	acceptOptions := &websocket.AcceptOptions{}
+	if len(h.allowedOrigins) == 1 && h.allowedOrigins[0] == "*" {
+		acceptOptions.OriginPatterns = []string{"*"}
+	} else {
+		acceptOptions.OriginPatterns = h.allowedOrigins
+	}
+
+	conn, err := websocket.Accept(w, r, acceptOptions)
 	if err != nil {
 		slog.Error("websocket accept failed", "error", err)
 		return
@@ -113,8 +132,12 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer h.unregisterConn(code, playerIndex, conn)
 
 	if reconnected {
-		_, _, _ = h.service.HandleReconnect(code, playerID)
-		h.broadcast(code, NewServerMessage("opponent_reconnected", OpponentReconnectedMsg{}))
+		reconnectedGame, idx, err := h.service.HandleReconnect(code, playerID)
+		if err == nil {
+			h.sendTo(code, idx, NewServerMessage("game_state", buildGameStateMsg(reconnectedGame, idx)))
+			opponentIndex := 1 - idx
+			h.sendTo(code, opponentIndex, NewServerMessage("opponent_reconnected", OpponentReconnectedMsg{}))
+		}
 	}
 
 	ctx, cancel := context.WithCancel(r.Context())
@@ -123,6 +146,24 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	go h.pingLoop(ctx, conn)
 
 	h.readLoop(ctx, conn, code, playerIndex)
+}
+
+func buildGameStateMsg(game *domain.Game, playerIndex int) GameStateMsg {
+	opponentIndex := 1 - playerIndex
+	var currentTurnDeadline time.Time
+
+	opponentReady := false
+	if game.Players[opponentIndex] != nil {
+		opponentReady = game.Players[opponentIndex].Ready
+	}
+
+	return GameStateMsg{
+		State:         string(game.State),
+		CurrentTurn:   game.CurrentTurn,
+		TurnDeadline:  currentTurnDeadline,
+		YourReady:     game.Players[playerIndex].Ready,
+		OpponentReady: opponentReady,
+	}
 }
 
 func (h *Handler) resolvePlayer(code, playerID string) (*domain.Game, int, bool) {
@@ -166,20 +207,26 @@ func (h *Handler) unregisterConn(code string, playerIndex int, conn *websocket.C
 	h.mu.Unlock()
 
 	_ = h.service.HandleDisconnect(code, playerIndex)
+
+	game, err := h.service.GetGame(code)
+	if err != nil || game.IsOver() {
+		return
+	}
+
 	h.broadcast(code, NewServerMessage("opponent_disconnected", OpponentDisconnectedMsg{
-		ReconnectDeadline: time.Now().Add(60 * time.Second),
+		ReconnectDeadline: time.Now().Add(h.reconnectGrace),
 	}))
 }
 
 func (h *Handler) pingLoop(ctx context.Context, conn *websocket.Conn) {
-	ticker := time.NewTicker(pingInterval)
+	ticker := time.NewTicker(h.pingInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			pingCtx, cancel := context.WithTimeout(ctx, h.writeTimeout)
 			err := conn.Ping(pingCtx)
 			cancel()
 			if err != nil {
@@ -244,7 +291,7 @@ func (h *Handler) handlePlaceShips(ctx context.Context, conn *websocket.Conn, co
 
 	game, _ := h.service.GetGame(code)
 	if game != nil && game.BothReady() {
-		deadline := time.Now().Add(turnTimeout)
+		deadline := time.Now().Add(h.turnTimeout)
 		h.broadcast(code, NewServerMessage("both_ready", BothReadyMsg{
 			FirstTurn:    game.Players[game.CurrentTurn].ID,
 			TurnDeadline: deadline,
@@ -263,8 +310,6 @@ func (h *Handler) handleFire(ctx context.Context, conn *websocket.Conn, code str
 		return
 	}
 
-	h.cancelTurnTimer(code)
-
 	target := domain.Point{X: payload.X, Y: payload.Y}
 	result, err := h.service.Fire(code, playerIndex, target)
 	if err != nil {
@@ -274,6 +319,8 @@ func (h *Handler) handleFire(ctx context.Context, conn *websocket.Conn, code str
 		}))
 		return
 	}
+
+	h.cancelTurnTimer(code)
 
 	game, _ := h.service.GetGame(code)
 	h.broadcastFireResult(code, playerIndex, target, result, game)
@@ -324,7 +371,7 @@ func (h *Handler) broadcastFireResult(code string, playerIndex int, target domai
 	deadline := time.Time{}
 	if game != nil && game.Players[game.CurrentTurn] != nil {
 		nextPlayerID = game.Players[game.CurrentTurn].ID
-		deadline = time.Now().Add(turnTimeout)
+		deadline = time.Now().Add(h.turnTimeout)
 	}
 
 	h.broadcast(code, NewServerMessage("fire_result", FireResultMsg{
@@ -342,19 +389,22 @@ func (h *Handler) broadcastFireResult(code string, playerIndex int, target domai
 }
 
 func (h *Handler) startTurnTimer(code string, playerIndex int, deadline time.Time) {
-	h.cancelTurnTimer(code)
+	h.timerMu.Lock()
+	defer h.timerMu.Unlock()
+	if t, ok := h.turnTimers[code]; ok {
+		t.Stop()
+		delete(h.turnTimers, code)
+	}
 	duration := time.Until(deadline)
 	timer := time.AfterFunc(duration, func() {
 		h.autoFire(code, playerIndex)
 	})
-	h.mu.Lock()
 	h.turnTimers[code] = timer
-	h.mu.Unlock()
 }
 
 func (h *Handler) cancelTurnTimer(code string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	h.timerMu.Lock()
+	defer h.timerMu.Unlock()
 	if t, ok := h.turnTimers[code]; ok {
 		t.Stop()
 		delete(h.turnTimers, code)
@@ -368,32 +418,25 @@ func (h *Handler) autoFire(code string, playerIndex int) {
 	}
 
 	opponentIndex := 1 - playerIndex
-	var target domain.Point
-	found := false
-	for y := 0; y < 10 && !found; y++ {
-		for x := 0; x < 10 && !found; x++ {
-			p := domain.Point{X: x, Y: y}
-			if game.Players[opponentIndex].Board.IsValidTarget(p) {
-				target = p
-				found = true
-			}
-		}
-	}
-
-	if !found {
-		return
-	}
-
 	validTargets := make([]domain.Point, 0)
-	for y := 0; y < 10; y++ {
-		for x := 0; x < 10; x++ {
+	for y := 0; y < domain.BoardSize; y++ {
+		for x := 0; x < domain.BoardSize; x++ {
 			p := domain.Point{X: x, Y: y}
 			if game.Players[opponentIndex].Board.IsValidTarget(p) {
 				validTargets = append(validTargets, p)
 			}
 		}
 	}
-	target = validTargets[rand.Intn(len(validTargets))]
+
+	if len(validTargets) == 0 {
+		return
+	}
+
+	idx, err := cryptoRandInt(len(validTargets))
+	if err != nil {
+		return
+	}
+	target := validTargets[idx]
 
 	result, err := h.service.Fire(code, playerIndex, target)
 	if err != nil {
@@ -411,11 +454,11 @@ func (h *Handler) broadcast(code string, msg ServerMessage) {
 
 	for i, entry := range entries {
 		if entry != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), h.writeTimeout)
+			defer cancel()
 			if err := wsjson.Write(ctx, entry.conn, msg); err != nil {
 				slog.Error("broadcast failed", "playerIndex", i, "error", err)
 			}
-			cancel()
 		}
 	}
 }
@@ -430,7 +473,7 @@ func (h *Handler) sendTo(code string, playerIndex int, msg ServerMessage) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), h.writeTimeout)
 	defer cancel()
 	if err := wsjson.Write(ctx, entry.conn, msg); err != nil {
 		slog.Error("sendTo failed", "playerIndex", playerIndex, "error", err)
@@ -453,11 +496,23 @@ func buildShips(placements []ShipPlacement) ([]*domain.Ship, error) {
 	return ships, nil
 }
 
-func generatePlayerID() string {
+func generatePlayerID() (string, error) {
 	const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, 16)
+	b := make([]byte, domain.PlayerIDLength)
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		n, err := cryptoRandInt(len(letters))
+		if err != nil {
+			return "", err
+		}
+		b[i] = letters[n]
 	}
-	return string(b)
+	return string(b), nil
+}
+
+func cryptoRandInt(max int) (int, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+	if err != nil {
+		return 0, err
+	}
+	return int(n.Int64()), nil
 }

@@ -27,6 +27,7 @@ type Game struct {
 	Winner      int
 	MoveHistory []Move
 	CreatedAt   time.Time
+	FinishedAt  time.Time
 }
 
 func NewGame(id, creatorID string) *Game {
@@ -44,6 +45,9 @@ func (g *Game) Join(playerID string) error {
 	if g.Players[1] != nil {
 		return ErrGameFull
 	}
+	if g.State != StateWaiting {
+		return ErrInvalidState
+	}
 	g.Players[1] = NewPlayer(playerID)
 	g.State = StatePlacing
 	return nil
@@ -60,11 +64,15 @@ func (g *Game) PlaceShips(playerIndex int, ships []*Ship) error {
 	if player.Ready {
 		return ErrAlreadyReady
 	}
+
+	freshBoard := NewBoard()
 	for _, ship := range ships {
-		if err := player.Board.PlaceShip(ship); err != nil {
+		if err := freshBoard.PlaceShip(ship); err != nil {
 			return err
 		}
 	}
+
+	player.Board = freshBoard
 	player.Ready = true
 	if g.BothReady() {
 		g.State = StatePlaying
@@ -117,6 +125,7 @@ func (g *Game) Fire(playerIndex int, target Point) (*ShotResult, error) {
 	if g.Players[opponentIndex].Board.AllShipsSunk() {
 		g.State = StateGameOver
 		g.Winner = playerIndex
+		g.FinishedAt = time.Now()
 		return &result, nil
 	}
 
@@ -129,4 +138,26 @@ func (g *Game) Fire(playerIndex int, target Point) (*ShotResult, error) {
 
 func (g *Game) IsOver() bool {
 	return g.State == StateGameOver || g.State == StateAbandoned
+}
+
+func (g *Game) DeepCopy() *Game {
+	ng := &Game{
+		ID:          g.ID,
+		State:       g.State,
+		CurrentTurn: g.CurrentTurn,
+		Winner:      g.Winner,
+		CreatedAt:   g.CreatedAt,
+		FinishedAt:  g.FinishedAt,
+	}
+
+	for i, p := range g.Players {
+		if p != nil {
+			ng.Players[i] = p.DeepCopy()
+		}
+	}
+
+	ng.MoveHistory = make([]Move, len(g.MoveHistory))
+	copy(ng.MoveHistory, g.MoveHistory)
+
+	return ng
 }

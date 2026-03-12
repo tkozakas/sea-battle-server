@@ -196,3 +196,22 @@ func TestShipAdjacentCells(t *testing.T) {
 		}
 	}
 }
+
+func TestShipDeepCopy(t *testing.T) {
+	ship, _ := NewShip(Destroyer, Point{0, 0}, Horizontal)
+	_ = ship.Hit(Point{0, 0})
+
+	cp := ship.DeepCopy()
+
+	if cp.Type != ship.Type {
+		t.Errorf("Type mismatch: got %s, want %s", cp.Type, ship.Type)
+	}
+	if !cp.IsHit(Point{0, 0}) {
+		t.Error("copy should preserve hit state")
+	}
+
+	_ = cp.Hit(Point{1, 0})
+	if ship.IsHit(Point{1, 0}) {
+		t.Error("hitting copy should not affect original")
+	}
+}

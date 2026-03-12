@@ -105,3 +105,30 @@ func TestConcurrentAccess(t *testing.T) {
 		t.Errorf("expected count %d, got %d", n, repo.Count())
 	}
 }
+
+func TestFindByIDReturnsDeepCopy(t *testing.T) {
+	repo := repository.NewMemoryGameRepository()
+	game := domain.NewGame("code1", "player1")
+	_ = repo.Save(game)
+
+	found1, _ := repo.FindByID("code1")
+	found1.State = domain.StatePlaying
+
+	found2, _ := repo.FindByID("code1")
+	if found2.State == domain.StatePlaying {
+		t.Error("FindByID should return a deep copy; modifying result should not affect stored game")
+	}
+}
+
+func TestSaveStoresDeepCopy(t *testing.T) {
+	repo := repository.NewMemoryGameRepository()
+	game := domain.NewGame("code1", "player1")
+	_ = repo.Save(game)
+
+	game.State = domain.StatePlaying
+
+	found, _ := repo.FindByID("code1")
+	if found.State == domain.StatePlaying {
+		t.Error("Save should store a deep copy; modifying the original after save should not affect stored game")
+	}
+}

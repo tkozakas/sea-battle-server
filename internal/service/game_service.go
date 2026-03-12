@@ -14,9 +14,9 @@ type GameService struct {
 	repo  repository.GameRepository
 }
 
-func NewGameService(repo repository.GameRepository) *GameService {
+func NewGameService(repo repository.GameRepository, rooms *RoomManager) *GameService {
 	return &GameService{
-		rooms: NewRoomManager(repo),
+		rooms: rooms,
 		repo:  repo,
 	}
 }

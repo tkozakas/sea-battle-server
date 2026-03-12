@@ -9,7 +9,9 @@ import (
 )
 
 func newGameService() *service.GameService {
-	return service.NewGameService(repository.NewMemoryGameRepository())
+	repo := repository.NewMemoryGameRepository()
+	rooms := service.NewRoomManager(repo, 1000)
+	return service.NewGameService(repo, rooms)
 }
 
 func validShips(rowOffset int) []*domain.Ship {

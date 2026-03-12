@@ -20,7 +20,7 @@ func NewMemoryGameRepository() *MemoryGameRepository {
 func (r *MemoryGameRepository) Save(game *domain.Game) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.games[game.ID] = game
+	r.games[game.ID] = game.DeepCopy()
 	return nil
 }
 
@@ -31,7 +31,7 @@ func (r *MemoryGameRepository) FindByID(id string) (*domain.Game, error) {
 	if !ok {
 		return nil, domain.ErrGameNotFound
 	}
-	return game, nil
+	return game.DeepCopy(), nil
 }
 
 func (r *MemoryGameRepository) Delete(id string) error {

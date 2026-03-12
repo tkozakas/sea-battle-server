@@ -82,6 +82,15 @@ func TestGameJoinFull(t *testing.T) {
 	}
 }
 
+func TestGameJoinWrongState(t *testing.T) {
+	g := NewGame("g1", "creator")
+	g.State = StatePlaying
+	err := g.Join("joiner")
+	if err != ErrInvalidState {
+		t.Errorf("expected ErrInvalidState when joining non-waiting game, got %v", err)
+	}
+}
+
 func TestGamePlaceShips(t *testing.T) {
 	g := NewGame("g1", "p0")
 	_ = g.Join("p1")
@@ -112,6 +121,29 @@ func TestGamePlaceShipsWrongState(t *testing.T) {
 	err := g.PlaceShips(0, validShipSet(t))
 	if err != ErrInvalidState {
 		t.Errorf("expected ErrInvalidState, got %v", err)
+	}
+}
+
+func TestGamePlaceShipsRollbackOnInvalidPlacement(t *testing.T) {
+	g := NewGame("g1", "p0")
+	_ = g.Join("p1")
+
+	overlappingShips := []*Ship{
+		mustShip(t, Carrier, 0, 0, Horizontal),
+		mustShip(t, Battleship, 0, 0, Horizontal),
+		mustShip(t, Cruiser, 0, 4, Horizontal),
+		mustShip(t, Submarine, 0, 6, Horizontal),
+		mustShip(t, Destroyer, 0, 8, Horizontal),
+	}
+
+	err := g.PlaceShips(0, overlappingShips)
+	if err == nil {
+		t.Fatal("expected error for overlapping ships, got nil")
+	}
+
+	err = g.PlaceShips(0, validShipSet(t))
+	if err != nil {
+		t.Fatalf("expected valid placement to succeed after failed attempt, got: %v", err)
 	}
 }
 
@@ -216,5 +248,31 @@ func TestGameFullGame(t *testing.T) {
 	}
 	if g.Winner != 0 {
 		t.Errorf("Winner = %d, want 0", g.Winner)
+	}
+	if g.FinishedAt.IsZero() {
+		t.Error("FinishedAt should be set when game is over")
+	}
+}
+
+func TestGameDeepCopy(t *testing.T) {
+	g := setupPlayingGame(t)
+
+	cp := g.DeepCopy()
+
+	if cp.ID != g.ID {
+		t.Errorf("ID mismatch: got %s, want %s", cp.ID, g.ID)
+	}
+	if cp.State != g.State {
+		t.Errorf("State mismatch")
+	}
+
+	cp.Players[0].Board.Grid[0][0] = CellHit
+	if g.Players[0].Board.Grid[0][0] == CellHit {
+		t.Error("modifying copy's board should not affect original")
+	}
+
+	cp.State = StateGameOver
+	if g.State == StateGameOver {
+		t.Error("modifying copy's state should not affect original")
 	}
 }

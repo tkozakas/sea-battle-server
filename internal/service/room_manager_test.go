@@ -10,7 +10,7 @@ import (
 )
 
 func newRoomManager() *service.RoomManager {
-	return service.NewRoomManager(repository.NewMemoryGameRepository())
+	return service.NewRoomManager(repository.NewMemoryGameRepository(), 1000)
 }
 
 func TestCreateRoom(t *testing.T) {
@@ -85,7 +85,7 @@ func TestActiveRoomCount(t *testing.T) {
 
 func TestCleanupStaleRooms(t *testing.T) {
 	repo := repository.NewMemoryGameRepository()
-	rm := service.NewRoomManager(repo)
+	rm := service.NewRoomManager(repo, 1000)
 
 	code1, _ := rm.CreateRoom("p1")
 	code2, _ := rm.CreateRoom("p2")
@@ -103,5 +103,34 @@ func TestCleanupStaleRooms(t *testing.T) {
 
 	if rm.ActiveRoomCount() != 0 {
 		t.Errorf("expected 0 rooms after cleanup, got %d", rm.ActiveRoomCount())
+	}
+}
+
+func TestMaxRoomsEnforced(t *testing.T) {
+	repo := repository.NewMemoryGameRepository()
+	rm := service.NewRoomManager(repo, 2)
+
+	_, err := rm.CreateRoom("p1")
+	if err != nil {
+		t.Fatalf("unexpected error creating room 1: %v", err)
+	}
+	_, err = rm.CreateRoom("p2")
+	if err != nil {
+		t.Fatalf("unexpected error creating room 2: %v", err)
+	}
+	_, err = rm.CreateRoom("p3")
+	if err == nil {
+		t.Fatal("expected error when max rooms exceeded, got nil")
+	}
+}
+
+func TestGenerateCodeReturnsUniqueCode(t *testing.T) {
+	rm := newRoomManager()
+	code, err := rm.GenerateCode()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(code) != 6 {
+		t.Errorf("expected code length 6, got %d", len(code))
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/tkozakas/sea-battle-server/internal/config"
 	"github.com/tkozakas/sea-battle-server/internal/repository"
 	"github.com/tkozakas/sea-battle-server/internal/service"
 	"github.com/tkozakas/sea-battle-server/internal/transport"
@@ -13,8 +14,9 @@ import (
 
 func newTestHandler() *transport.Handler {
 	repo := repository.NewMemoryGameRepository()
-	svc := service.NewGameService(repo)
-	return transport.NewHandler(svc)
+	rooms := service.NewRoomManager(repo, 1000)
+	svc := service.NewGameService(repo, rooms)
+	return transport.NewHandler(svc, config.Load())
 }
 
 func TestHandleHealth(t *testing.T) {
@@ -74,8 +76,9 @@ func TestHandleCreateGame(t *testing.T) {
 
 func TestHandleGetGame(t *testing.T) {
 	repo := repository.NewMemoryGameRepository()
-	svc := service.NewGameService(repo)
-	h := transport.NewHandler(svc)
+	rooms := service.NewRoomManager(repo, 1000)
+	svc := service.NewGameService(repo, rooms)
+	h := transport.NewHandler(svc, config.Load())
 	router := transport.NewRouter(h)
 
 	code, _ := svc.CreateGame("player1")

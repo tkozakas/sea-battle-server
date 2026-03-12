@@ -8,7 +8,7 @@ type ShotResult struct {
 }
 
 type Board struct {
-	Grid  [10][10]CellState
+	Grid  [BoardSize][BoardSize]CellState
 	Ships []*Ship
 }
 
@@ -97,5 +97,16 @@ func (b *Board) IsValidTarget(p Point) bool {
 }
 
 func inBounds(p Point) bool {
-	return p.X >= 0 && p.X <= 9 && p.Y >= 0 && p.Y <= 9
+	return p.X >= 0 && p.X < BoardSize && p.Y >= 0 && p.Y < BoardSize
+}
+
+func (b *Board) DeepCopy() *Board {
+	nb := &Board{
+		Grid: b.Grid,
+	}
+	nb.Ships = make([]*Ship, len(b.Ships))
+	for i, s := range b.Ships {
+		nb.Ships[i] = s.DeepCopy()
+	}
+	return nb
 }

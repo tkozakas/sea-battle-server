@@ -1,7 +1,8 @@
 package service
 
 import (
-	"math/rand"
+	"crypto/rand"
+	"errors"
 	"time"
 
 	"github.com/tkozakas/sea-battle-server/internal/domain"
@@ -10,34 +11,53 @@ import (
 
 const codeCharset = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 const codeLength = 6
+const maxCodeGenerationAttempts = 1000
+
+var ErrMaxRoomsExceeded = errors.New("max rooms exceeded")
 
 type RoomManager struct {
-	repo repository.GameRepository
+	repo     repository.GameRepository
+	maxRooms int
 }
 
-func NewRoomManager(repo repository.GameRepository) *RoomManager {
-	return &RoomManager{repo: repo}
+func NewRoomManager(repo repository.GameRepository, maxRooms int) *RoomManager {
+	return &RoomManager{repo: repo, maxRooms: maxRooms}
 }
 
-func (rm *RoomManager) GenerateCode() string {
-	for {
-		code := generateRandomCode()
-		if _, err := rm.repo.FindByID(code); err != nil {
-			return code
+func (rm *RoomManager) GenerateCode() (string, error) {
+	for i := 0; i < maxCodeGenerationAttempts; i++ {
+		code, err := generateRandomCode()
+		if err != nil {
+			return "", err
+		}
+		if _, err := rm.repo.FindByID(code); errors.Is(err, domain.ErrGameNotFound) {
+			return code, nil
 		}
 	}
+	return "", ErrMaxRoomsExceeded
 }
 
-func generateRandomCode() string {
+func generateRandomCode() (string, error) {
 	b := make([]byte, codeLength)
-	for i := range b {
-		b[i] = codeCharset[rand.Intn(len(codeCharset))]
+	charset := []byte(codeCharset)
+	random := make([]byte, codeLength)
+	if _, err := rand.Read(random); err != nil {
+		return "", err
 	}
-	return string(b)
+	for i := range b {
+		b[i] = charset[int(random[i])%len(charset)]
+	}
+	return string(b), nil
 }
 
 func (rm *RoomManager) CreateRoom(creatorID string) (string, error) {
-	code := rm.GenerateCode()
+	if rm.maxRooms > 0 && rm.repo.Count() >= rm.maxRooms {
+		return "", ErrMaxRoomsExceeded
+	}
+	code, err := rm.GenerateCode()
+	if err != nil {
+		return "", err
+	}
 	game := domain.NewGame(code, creatorID)
 	if err := rm.repo.Save(game); err != nil {
 		return "", err
@@ -67,13 +87,18 @@ func (rm *RoomManager) CleanupStaleRooms(waitingTimeout, finishedTimeout time.Du
 		if err != nil {
 			continue
 		}
-		age := now.Sub(game.CreatedAt)
-		if game.State == domain.StateWaiting && age > waitingTimeout {
+		if game.State == domain.StateWaiting && now.Sub(game.CreatedAt) > waitingTimeout {
 			toDelete = append(toDelete, code)
 			continue
 		}
-		if (game.State == domain.StateGameOver || game.State == domain.StateAbandoned) && age > finishedTimeout {
-			toDelete = append(toDelete, code)
+		if game.State == domain.StateGameOver || game.State == domain.StateAbandoned {
+			referenceTime := game.FinishedAt
+			if referenceTime.IsZero() {
+				referenceTime = game.CreatedAt
+			}
+			if now.Sub(referenceTime) > finishedTimeout {
+				toDelete = append(toDelete, code)
+			}
 		}
 	}
 

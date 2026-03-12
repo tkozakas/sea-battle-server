@@ -1,7 +1,10 @@
 BINARY_NAME=sea-battle-server
 BUILD_DIR=bin
 
-.PHONY: run test cover lint build docker
+.PHONY: run test cover lint build docker env
+
+env:
+	@test -f .env || cp env.template .env
 
 run:
 	go run ./cmd/server/...

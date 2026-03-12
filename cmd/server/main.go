@@ -17,40 +17,24 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("fatal error", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	cfg := config.Load()
 
-	logLevel := slog.LevelInfo
-	if cfg.LogLevel == "debug" {
-		logLevel = slog.LevelDebug
-	} else if cfg.LogLevel == "warn" {
-		logLevel = slog.LevelWarn
-	} else if cfg.LogLevel == "error" {
-		logLevel = slog.LevelError
-	}
-
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
-	slog.SetDefault(logger)
+	setupLogger(cfg.LogLevel)
 
 	repo := repository.NewMemoryGameRepository()
-	svc := service.NewGameService(repo)
-	handler := transport.NewHandler(svc)
+	rooms := service.NewRoomManager(repo, cfg.MaxRooms)
+	svc := service.NewGameService(repo, rooms)
+	handler := transport.NewHandler(svc, cfg)
 	router := transport.NewRouter(handler)
 
-	rooms := service.NewRoomManager(repo)
-
-	cleanupTicker := time.NewTicker(cfg.RoomCleanupInterval)
-	stopCleanup := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-cleanupTicker.C:
-				rooms.CleanupStaleRooms(cfg.ReconnectGrace, cfg.ReconnectGrace)
-				slog.Debug("cleanup ran", "active_rooms", svc.ActiveRoomCount())
-			case <-stopCleanup:
-				return
-			}
-		}
-	}()
+	stopCleanup := startCleanupLoop(cfg, rooms, svc)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
@@ -59,28 +43,65 @@ func main() {
 
 	slog.Info("starting server", "port", cfg.Port, "log_level", cfg.LogLevel)
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-
+	serverErr := make(chan error, 1)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server error", "error", err)
-			os.Exit(1)
+			serverErr <- err
 		}
 	}()
 
-	<-sigCh
-	slog.Info("shutting down server")
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	cleanupTicker.Stop()
+	select {
+	case err := <-serverErr:
+		close(stopCleanup)
+		return err
+	case <-sigCh:
+		slog.Info("shutting down server")
+	}
+
 	close(stopCleanup)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		slog.Error("graceful shutdown failed", "error", err)
+		return fmt.Errorf("graceful shutdown failed: %w", err)
 	}
 
 	slog.Info("server stopped")
+	return nil
+}
+
+func setupLogger(logLevel string) {
+	level := slog.LevelInfo
+	switch logLevel {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	slog.SetDefault(logger)
+}
+
+func startCleanupLoop(cfg *config.Config, rooms *service.RoomManager, svc *service.GameService) chan struct{} {
+	stop := make(chan struct{})
+	ticker := time.NewTicker(cfg.RoomCleanupInterval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				rooms.CleanupStaleRooms(cfg.ReconnectGrace, cfg.ReconnectGrace)
+				slog.Debug("cleanup ran", "active_rooms", svc.ActiveRoomCount())
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return stop
 }

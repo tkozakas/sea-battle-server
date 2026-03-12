@@ -11,7 +11,7 @@ func NewRouter(handler *Handler) http.Handler {
 
 	r.Use(RecoveryMiddleware)
 	r.Use(LoggingMiddleware)
-	r.Use(CORSMiddleware)
+	r.Use(CORSMiddleware(handler.allowedOrigins))
 
 	r.Get("/health", handler.HandleHealth)
 	r.Post("/api/games", handler.HandleCreateGame)

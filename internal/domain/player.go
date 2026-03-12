@@ -15,3 +15,12 @@ func NewPlayer(id string) *Player {
 		Connected: true,
 	}
 }
+
+func (p *Player) DeepCopy() *Player {
+	return &Player{
+		ID:        p.ID,
+		Board:     p.Board.DeepCopy(),
+		Ready:     p.Ready,
+		Connected: p.Connected,
+	}
+}
