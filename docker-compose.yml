@@ -1,0 +1,29 @@
+services:
+  sea-battle-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      TURN_TIMEOUT: "30s"
+      RECONNECT_GRACE: "60s"
+      ROOM_CLEANUP_INTERVAL: "60s"
+      MAX_ROOMS: "1000"
+      LOG_LEVEL: "info"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 64M
