@@ -106,7 +106,10 @@ func TestNewShipInvalidType(t *testing.T) {
 }
 
 func TestShipHit(t *testing.T) {
-	ship, _ := NewShip(Destroyer, Point{3, 3}, Horizontal)
+	ship, err := NewShip(Destroyer, Point{3, 3}, Horizontal)
+	if err != nil {
+		t.Fatal(err)
+	}
 	target := Point{3, 3}
 	if err := ship.Hit(target); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -117,25 +120,34 @@ func TestShipHit(t *testing.T) {
 }
 
 func TestShipHitAlreadyHit(t *testing.T) {
-	ship, _ := NewShip(Destroyer, Point{3, 3}, Horizontal)
+	ship, err := NewShip(Destroyer, Point{3, 3}, Horizontal)
+	if err != nil {
+		t.Fatal(err)
+	}
 	target := Point{3, 3}
 	_ = ship.Hit(target)
-	err := ship.Hit(target)
+	err = ship.Hit(target)
 	if err != ErrAlreadyFired {
 		t.Errorf("expected ErrAlreadyFired, got %v", err)
 	}
 }
 
 func TestShipHitNotOnShip(t *testing.T) {
-	ship, _ := NewShip(Destroyer, Point{3, 3}, Horizontal)
-	err := ship.Hit(Point{9, 9})
+	ship, err := NewShip(Destroyer, Point{3, 3}, Horizontal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ship.Hit(Point{9, 9})
 	if err == nil {
 		t.Fatal("expected error for cell not on ship, got nil")
 	}
 }
 
 func TestShipIsSunk(t *testing.T) {
-	ship, _ := NewShip(Destroyer, Point{0, 0}, Horizontal)
+	ship, err := NewShip(Destroyer, Point{0, 0}, Horizontal)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if ship.IsSunk() {
 		t.Error("ship should not be sunk before any hits")
@@ -153,7 +165,10 @@ func TestShipIsSunk(t *testing.T) {
 }
 
 func TestShipAdjacentCells(t *testing.T) {
-	ship, _ := NewShip(Destroyer, Point{2, 2}, Horizontal)
+	ship, err := NewShip(Destroyer, Point{2, 2}, Horizontal)
+	if err != nil {
+		t.Fatal(err)
+	}
 	adjacent := ship.AdjacentCells()
 
 	shipCells := map[Point]bool{
@@ -198,7 +213,10 @@ func TestShipAdjacentCells(t *testing.T) {
 }
 
 func TestShipDeepCopy(t *testing.T) {
-	ship, _ := NewShip(Destroyer, Point{0, 0}, Horizontal)
+	ship, err := NewShip(Destroyer, Point{0, 0}, Horizontal)
+	if err != nil {
+		t.Fatal(err)
+	}
 	_ = ship.Hit(Point{0, 0})
 
 	cp := ship.DeepCopy()

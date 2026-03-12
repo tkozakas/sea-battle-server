@@ -56,13 +56,16 @@ func TestGetRoomNotFound(t *testing.T) {
 
 func TestRemoveRoom(t *testing.T) {
 	rm := newRoomManager()
-	code, _ := rm.CreateRoom("player1")
+	code, err := rm.CreateRoom("player1")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err := rm.RemoveRoom(code); err != nil {
 		t.Fatalf("unexpected error removing room: %v", err)
 	}
 
-	_, err := rm.GetRoom(code)
+	_, err = rm.GetRoom(code)
 	if err == nil {
 		t.Error("expected error after remove, got nil")
 	}
@@ -75,8 +78,12 @@ func TestActiveRoomCount(t *testing.T) {
 		t.Errorf("expected 0, got %d", rm.ActiveRoomCount())
 	}
 
-	_, _ = rm.CreateRoom("p1")
-	_, _ = rm.CreateRoom("p2")
+	if _, err := rm.CreateRoom("p1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rm.CreateRoom("p2"); err != nil {
+		t.Fatal(err)
+	}
 
 	if rm.ActiveRoomCount() != 2 {
 		t.Errorf("expected 2, got %d", rm.ActiveRoomCount())
@@ -87,11 +94,23 @@ func TestCleanupStaleRooms(t *testing.T) {
 	repo := repository.NewMemoryGameRepository()
 	rm := service.NewRoomManager(repo, 1000)
 
-	code1, _ := rm.CreateRoom("p1")
-	code2, _ := rm.CreateRoom("p2")
+	code1, err := rm.CreateRoom("p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code2, err := rm.CreateRoom("p2")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	game1, _ := repo.FindByID(code1)
-	game2, _ := repo.FindByID(code2)
+	game1, err := repo.FindByID(code1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	game2, err := repo.FindByID(code2)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	game1.CreatedAt = game1.CreatedAt.Add(-2 * time.Minute)
 	game2.CreatedAt = game2.CreatedAt.Add(-2 * time.Minute)

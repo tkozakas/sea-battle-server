@@ -60,7 +60,10 @@ func TestHandleCreateGame(t *testing.T) {
 		t.Errorf("expected type 'game_created', got %s", msg.Type)
 	}
 
-	payloadBytes, _ := json.Marshal(msg.Payload)
+	payloadBytes, err := json.Marshal(msg.Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var payload transport.GameCreatedMsg
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		t.Fatalf("failed to decode payload: %v", err)
@@ -81,7 +84,10 @@ func TestHandleGetGame(t *testing.T) {
 	h := transport.NewHandler(svc, config.Load())
 	router := transport.NewRouter(h)
 
-	code, _ := svc.CreateGame("player1")
+	code, err := svc.CreateGame("player1")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/games/"+code, nil)
 	rr := httptest.NewRecorder()

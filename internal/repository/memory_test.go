@@ -111,10 +111,16 @@ func TestFindByIDReturnsDeepCopy(t *testing.T) {
 	game := domain.NewGame("code1", "player1")
 	_ = repo.Save(game)
 
-	found1, _ := repo.FindByID("code1")
+	found1, err := repo.FindByID("code1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	found1.State = domain.StatePlaying
 
-	found2, _ := repo.FindByID("code1")
+	found2, err := repo.FindByID("code1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if found2.State == domain.StatePlaying {
 		t.Error("FindByID should return a deep copy; modifying result should not affect stored game")
 	}
@@ -127,7 +133,10 @@ func TestSaveStoresDeepCopy(t *testing.T) {
 
 	game.State = domain.StatePlaying
 
-	found, _ := repo.FindByID("code1")
+	found, err := repo.FindByID("code1")
+	if err != nil {
+		t.Fatalf("FindByID failed: %v", err)
+	}
 	if found.State == domain.StatePlaying {
 		t.Error("Save should store a deep copy; modifying the original after save should not affect stored game")
 	}

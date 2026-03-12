@@ -180,7 +180,9 @@ func TestGameFireHit(t *testing.T) {
 func TestGameFireSunk(t *testing.T) {
 	g := setupPlayingGame(t)
 
-	_, _ = g.Fire(0, Point{0, 8})
+	if _, err := g.Fire(0, Point{0, 8}); err != nil {
+		t.Fatal(err)
+	}
 	result, err := g.Fire(0, Point{1, 8})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -225,7 +227,10 @@ func TestGameFullGame(t *testing.T) {
 		{Destroyer, 0, 8},
 	}
 	for _, sp := range shipPlacements {
-		s, _ := NewShip(sp.shipType, Point{sp.x, sp.y}, Horizontal)
+		s, err := NewShip(sp.shipType, Point{sp.x, sp.y}, Horizontal)
+		if err != nil {
+			t.Fatal(err)
+		}
 		allShipCells = append(allShipCells, s.Cells()...)
 	}
 

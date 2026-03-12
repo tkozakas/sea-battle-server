@@ -50,7 +50,10 @@ func TestCreateGame(t *testing.T) {
 
 func TestJoinGame(t *testing.T) {
 	svc := newGameService()
-	code, _ := svc.CreateGame("player1")
+	code, err := svc.CreateGame("player1")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err := svc.JoinGame(code, "player2"); err != nil {
 		t.Fatalf("unexpected error joining game: %v", err)
@@ -79,7 +82,10 @@ func TestJoinGameNotFound(t *testing.T) {
 
 func TestPlaceShips(t *testing.T) {
 	svc := newGameService()
-	code, _ := svc.CreateGame("player1")
+	code, err := svc.CreateGame("player1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	_ = svc.JoinGame(code, "player2")
 
 	ships := validShips(0)
@@ -87,7 +93,10 @@ func TestPlaceShips(t *testing.T) {
 		t.Fatalf("unexpected error placing ships: %v", err)
 	}
 
-	game, _ := svc.GetGame(code)
+	game, err := svc.GetGame(code)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !game.Players[0].Ready {
 		t.Error("expected player 0 to be ready")
 	}
@@ -95,7 +104,10 @@ func TestPlaceShips(t *testing.T) {
 
 func TestFire(t *testing.T) {
 	svc := newGameService()
-	code, _ := svc.CreateGame("player1")
+	code, err := svc.CreateGame("player1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	_ = svc.JoinGame(code, "player2")
 	_ = svc.PlaceShips(code, 0, validShips(0))
 	_ = svc.PlaceShips(code, 1, validShips(0))
@@ -111,17 +123,26 @@ func TestFire(t *testing.T) {
 
 func TestFireMissSwitchesTurn(t *testing.T) {
 	svc := newGameService()
-	code, _ := svc.CreateGame("player1")
+	code, err := svc.CreateGame("player1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	_ = svc.JoinGame(code, "player2")
 	_ = svc.PlaceShips(code, 0, validShips(0))
 	_ = svc.PlaceShips(code, 1, validShips(0))
 
-	result, _ := svc.Fire(code, 0, domain.Point{X: 9, Y: 9})
+	result, err := svc.Fire(code, 0, domain.Point{X: 9, Y: 9})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if result.Hit {
 		t.Fatal("expected a miss for this test")
 	}
 
-	game, _ := svc.GetGame(code)
+	game, err := svc.GetGame(code)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if game.CurrentTurn != 1 {
 		t.Errorf("expected turn to switch to player 1, got %d", game.CurrentTurn)
 	}
@@ -129,17 +150,26 @@ func TestFireMissSwitchesTurn(t *testing.T) {
 
 func TestFireHitSameTurn(t *testing.T) {
 	svc := newGameService()
-	code, _ := svc.CreateGame("player1")
+	code, err := svc.CreateGame("player1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	_ = svc.JoinGame(code, "player2")
 	_ = svc.PlaceShips(code, 0, validShips(0))
 	_ = svc.PlaceShips(code, 1, validShips(0))
 
-	result, _ := svc.Fire(code, 0, domain.Point{X: 0, Y: 0})
+	result, err := svc.Fire(code, 0, domain.Point{X: 0, Y: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !result.Hit {
 		t.Fatal("expected a hit at (0,0) where Carrier starts")
 	}
 
-	game, _ := svc.GetGame(code)
+	game, err := svc.GetGame(code)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if game.CurrentTurn != 0 {
 		t.Errorf("expected turn to stay at 0 after hit, got %d", game.CurrentTurn)
 	}
@@ -147,12 +177,18 @@ func TestFireHitSameTurn(t *testing.T) {
 
 func TestFullGameFlow(t *testing.T) {
 	svc := newGameService()
-	code, _ := svc.CreateGame("player1")
+	code, err := svc.CreateGame("player1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	_ = svc.JoinGame(code, "player2")
 	_ = svc.PlaceShips(code, 0, validShips(0))
 	_ = svc.PlaceShips(code, 1, validShips(0))
 
-	game, _ := svc.GetGame(code)
+	game, err := svc.GetGame(code)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if game.State != domain.StatePlaying {
 		t.Fatalf("expected playing state, got %s", game.State)
 	}
@@ -161,7 +197,10 @@ func TestFullGameFlow(t *testing.T) {
 	playerTurn := 0
 
 	for {
-		g, _ := svc.GetGame(code)
+		g, err := svc.GetGame(code)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if g.IsOver() {
 			break
 		}
@@ -188,7 +227,10 @@ func TestFullGameFlow(t *testing.T) {
 		}
 	}
 
-	final, _ := svc.GetGame(code)
+	final, err := svc.GetGame(code)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if final.State != domain.StateGameOver {
 		t.Errorf("expected game over, got %s", final.State)
 	}
@@ -204,13 +246,19 @@ func allShipCells(ships []*domain.Ship) []domain.Point {
 
 func TestHandleDisconnect(t *testing.T) {
 	svc := newGameService()
-	code, _ := svc.CreateGame("player1")
+	code, err := svc.CreateGame("player1")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err := svc.HandleDisconnect(code, 0); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	game, _ := svc.GetGame(code)
+	game, err := svc.GetGame(code)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if game.Players[0].Connected {
 		t.Error("expected player 0 to be disconnected")
 	}
@@ -218,7 +266,10 @@ func TestHandleDisconnect(t *testing.T) {
 
 func TestHandleReconnect(t *testing.T) {
 	svc := newGameService()
-	code, _ := svc.CreateGame("player1")
+	code, err := svc.CreateGame("player1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	_ = svc.HandleDisconnect(code, 0)
 
 	game, idx, err := svc.HandleReconnect(code, "player1")

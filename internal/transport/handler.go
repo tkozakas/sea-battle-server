@@ -120,11 +120,17 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		slog.Error("websocket accept failed", "error", err)
 		return
 	}
-	defer conn.CloseNow()
+	defer func() {
+		if err := conn.CloseNow(); err != nil {
+			slog.Debug("websocket close failed", "error", err)
+		}
+	}()
 
 	game, playerIndex, reconnected := h.resolvePlayer(code, playerID)
 	if game == nil {
-		_ = conn.Close(websocket.StatusNormalClosure, "game not found")
+		if err := conn.Close(websocket.StatusNormalClosure, "game not found"); err != nil {
+			slog.Debug("websocket close failed", "error", err)
+		}
 		return
 	}
 
