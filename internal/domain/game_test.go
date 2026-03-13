@@ -7,11 +7,15 @@ import (
 func validShipSet(t *testing.T) []*Ship {
 	t.Helper()
 	return []*Ship{
-		mustShip(t, Carrier, 0, 0, Horizontal),
-		mustShip(t, Battleship, 0, 2, Horizontal),
+		mustShip(t, Battleship, 0, 0, Horizontal),
+		mustShip(t, Cruiser, 0, 2, Horizontal),
 		mustShip(t, Cruiser, 0, 4, Horizontal),
-		mustShip(t, Submarine, 0, 6, Horizontal),
-		mustShip(t, Destroyer, 0, 8, Horizontal),
+		mustShip(t, Frigate, 0, 6, Horizontal),
+		mustShip(t, Frigate, 5, 6, Horizontal),
+		mustShip(t, Patrol, 0, 8, Horizontal),
+		mustShip(t, Patrol, 2, 8, Horizontal),
+		mustShip(t, Patrol, 4, 8, Horizontal),
+		mustShip(t, Patrol, 6, 8, Horizontal),
 	}
 }
 
@@ -129,11 +133,16 @@ func TestGamePlaceShipsRollbackOnInvalidPlacement(t *testing.T) {
 	_ = g.Join("p1")
 
 	overlappingShips := []*Ship{
-		mustShip(t, Carrier, 0, 0, Horizontal),
+		mustShip(t, Battleship, 0, 0, Horizontal),
 		mustShip(t, Battleship, 0, 0, Horizontal),
 		mustShip(t, Cruiser, 0, 4, Horizontal),
-		mustShip(t, Submarine, 0, 6, Horizontal),
-		mustShip(t, Destroyer, 0, 8, Horizontal),
+		mustShip(t, Cruiser, 0, 6, Horizontal),
+		mustShip(t, Frigate, 0, 8, Horizontal),
+		mustShip(t, Frigate, 5, 8, Horizontal),
+		mustShip(t, Patrol, 0, 9, Horizontal),
+		mustShip(t, Patrol, 2, 9, Horizontal),
+		mustShip(t, Patrol, 4, 9, Horizontal),
+		mustShip(t, Patrol, 6, 9, Horizontal),
 	}
 
 	err := g.PlaceShips(0, overlappingShips)
@@ -180,18 +189,15 @@ func TestGameFireHit(t *testing.T) {
 func TestGameFireSunk(t *testing.T) {
 	g := setupPlayingGame(t)
 
-	if _, err := g.Fire(0, Point{0, 8}); err != nil {
-		t.Fatal(err)
-	}
-	result, err := g.Fire(0, Point{1, 8})
+	result, err := g.Fire(0, Point{0, 8})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatal(err)
 	}
 	if !result.Sunk {
 		t.Error("expected ship to be sunk")
 	}
-	if result.ShipType != Destroyer {
-		t.Errorf("expected Destroyer sunk, got %s", result.ShipType)
+	if result.ShipType != Patrol {
+		t.Errorf("expected Patrol sunk, got %s", result.ShipType)
 	}
 }
 
@@ -220,11 +226,15 @@ func TestGameFullGame(t *testing.T) {
 		shipType ShipType
 		x, y     int
 	}{
-		{Carrier, 0, 0},
-		{Battleship, 0, 2},
+		{Battleship, 0, 0},
+		{Cruiser, 0, 2},
 		{Cruiser, 0, 4},
-		{Submarine, 0, 6},
-		{Destroyer, 0, 8},
+		{Frigate, 0, 6},
+		{Frigate, 5, 6},
+		{Patrol, 0, 8},
+		{Patrol, 2, 8},
+		{Patrol, 4, 8},
+		{Patrol, 6, 8},
 	}
 	for _, sp := range shipPlacements {
 		s, err := NewShip(sp.shipType, Point{sp.x, sp.y}, Horizontal)

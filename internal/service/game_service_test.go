@@ -20,11 +20,15 @@ func validShips(rowOffset int) []*domain.Ship {
 		x int
 		y int
 	}{
-		{domain.Carrier, 0, rowOffset + 0},
-		{domain.Battleship, 0, rowOffset + 2},
+		{domain.Battleship, 0, rowOffset + 0},
+		{domain.Cruiser, 0, rowOffset + 2},
 		{domain.Cruiser, 0, rowOffset + 4},
-		{domain.Submarine, 0, rowOffset + 6},
-		{domain.Destroyer, 0, rowOffset + 8},
+		{domain.Frigate, 0, rowOffset + 6},
+		{domain.Frigate, 5, rowOffset + 6},
+		{domain.Patrol, 0, rowOffset + 8},
+		{domain.Patrol, 2, rowOffset + 8},
+		{domain.Patrol, 4, rowOffset + 8},
+		{domain.Patrol, 6, rowOffset + 8},
 	}
 	ships := make([]*domain.Ship, 0, len(placements))
 	for _, p := range placements {
@@ -163,7 +167,7 @@ func TestFireHitSameTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !result.Hit {
-		t.Fatal("expected a hit at (0,0) where Carrier starts")
+		t.Fatal("expected a hit at (0,0) where Battleship starts")
 	}
 
 	game, err := svc.GetGame(code)

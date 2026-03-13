@@ -16,25 +16,29 @@ func mustShip(t *testing.T, shipType ShipType, x, y int, o Orientation) *Ship {
 func TestPlaceShip(t *testing.T) {
 	b := NewBoard()
 	ships := []*Ship{
-		mustShip(t, Carrier, 0, 0, Horizontal),
-		mustShip(t, Battleship, 0, 2, Horizontal),
+		mustShip(t, Battleship, 0, 0, Horizontal),
+		mustShip(t, Cruiser, 0, 2, Horizontal),
 		mustShip(t, Cruiser, 0, 4, Horizontal),
-		mustShip(t, Submarine, 0, 6, Horizontal),
-		mustShip(t, Destroyer, 0, 8, Horizontal),
+		mustShip(t, Frigate, 0, 6, Horizontal),
+		mustShip(t, Frigate, 5, 6, Horizontal),
+		mustShip(t, Patrol, 0, 8, Horizontal),
+		mustShip(t, Patrol, 2, 8, Horizontal),
+		mustShip(t, Patrol, 4, 8, Horizontal),
+		mustShip(t, Patrol, 6, 8, Horizontal),
 	}
 	for _, s := range ships {
 		if err := b.PlaceShip(s); err != nil {
 			t.Errorf("PlaceShip(%s) unexpected error: %v", s.Type, err)
 		}
 	}
-	if len(b.Ships) != 5 {
-		t.Errorf("expected 5 ships, got %d", len(b.Ships))
+	if len(b.Ships) != 9 {
+		t.Errorf("expected 9 ships, got %d", len(b.Ships))
 	}
 }
 
 func TestPlaceShipOutOfBounds(t *testing.T) {
 	b := NewBoard()
-	ship := mustShip(t, Carrier, 8, 0, Horizontal)
+	ship := mustShip(t, Battleship, 8, 0, Horizontal)
 	err := b.PlaceShip(ship)
 	if err == nil {
 		t.Fatal("expected error for out-of-bounds placement")
@@ -43,8 +47,8 @@ func TestPlaceShipOutOfBounds(t *testing.T) {
 
 func TestPlaceShipOverlap(t *testing.T) {
 	b := NewBoard()
-	s1 := mustShip(t, Destroyer, 0, 0, Horizontal)
-	s2 := mustShip(t, Destroyer, 0, 0, Horizontal)
+	s1 := mustShip(t, Frigate, 0, 0, Horizontal)
+	s2 := mustShip(t, Frigate, 0, 0, Horizontal)
 	_ = b.PlaceShip(s1)
 	err := b.PlaceShip(s2)
 	if err == nil {
@@ -60,13 +64,13 @@ func TestPlaceShipAdjacent(t *testing.T) {
 	}{
 		{
 			name: "adjacent horizontal",
-			s1:   &Ship{Type: Destroyer, Size: 2, Origin: Point{0, 0}, Orientation: Horizontal, cells: []Point{{0, 0}, {1, 0}}, hitCells: map[Point]bool{}},
-			s2:   &Ship{Type: Destroyer, Size: 2, Origin: Point{0, 1}, Orientation: Horizontal, cells: []Point{{0, 1}, {1, 1}}, hitCells: map[Point]bool{}},
+			s1:   &Ship{Type: Frigate, Size: 2, Origin: Point{0, 0}, Orientation: Horizontal, cells: []Point{{0, 0}, {1, 0}}, hitCells: map[Point]bool{}},
+			s2:   &Ship{Type: Frigate, Size: 2, Origin: Point{0, 1}, Orientation: Horizontal, cells: []Point{{0, 1}, {1, 1}}, hitCells: map[Point]bool{}},
 		},
 		{
 			name: "adjacent diagonal",
-			s1:   &Ship{Type: Destroyer, Size: 2, Origin: Point{0, 0}, Orientation: Horizontal, cells: []Point{{0, 0}, {1, 0}}, hitCells: map[Point]bool{}},
-			s2:   &Ship{Type: Destroyer, Size: 2, Origin: Point{2, 1}, Orientation: Horizontal, cells: []Point{{2, 1}, {3, 1}}, hitCells: map[Point]bool{}},
+			s1:   &Ship{Type: Frigate, Size: 2, Origin: Point{0, 0}, Orientation: Horizontal, cells: []Point{{0, 0}, {1, 0}}, hitCells: map[Point]bool{}},
+			s2:   &Ship{Type: Frigate, Size: 2, Origin: Point{2, 1}, Orientation: Horizontal, cells: []Point{{2, 1}, {3, 1}}, hitCells: map[Point]bool{}},
 		},
 	}
 	for _, tt := range tests {
@@ -83,7 +87,7 @@ func TestPlaceShipAdjacent(t *testing.T) {
 
 func TestReceiveShotMiss(t *testing.T) {
 	b := NewBoard()
-	ship := mustShip(t, Destroyer, 0, 0, Horizontal)
+	ship := mustShip(t, Frigate, 0, 0, Horizontal)
 	_ = b.PlaceShip(ship)
 
 	result, err := b.ReceiveShot(Point{5, 5})
@@ -100,7 +104,7 @@ func TestReceiveShotMiss(t *testing.T) {
 
 func TestReceiveShotHit(t *testing.T) {
 	b := NewBoard()
-	ship := mustShip(t, Destroyer, 3, 3, Horizontal)
+	ship := mustShip(t, Frigate, 3, 3, Horizontal)
 	_ = b.PlaceShip(ship)
 
 	result, err := b.ReceiveShot(Point{3, 3})
@@ -120,7 +124,7 @@ func TestReceiveShotHit(t *testing.T) {
 
 func TestReceiveShotSunk(t *testing.T) {
 	b := NewBoard()
-	ship := mustShip(t, Destroyer, 3, 3, Horizontal)
+	ship := mustShip(t, Frigate, 3, 3, Horizontal)
 	_ = b.PlaceShip(ship)
 
 	_, _ = b.ReceiveShot(Point{3, 3})
@@ -134,8 +138,8 @@ func TestReceiveShotSunk(t *testing.T) {
 	if !result.Sunk {
 		t.Error("expected ship to be sunk")
 	}
-	if result.ShipType != Destroyer {
-		t.Errorf("expected ShipType = Destroyer, got %s", result.ShipType)
+	if result.ShipType != Frigate {
+		t.Errorf("expected ShipType = Frigate, got %s", result.ShipType)
 	}
 	if len(result.Cells) != 2 {
 		t.Errorf("expected 2 sunk cells, got %d", len(result.Cells))
@@ -147,7 +151,7 @@ func TestReceiveShotSunk(t *testing.T) {
 
 func TestReceiveShotAlreadyFired(t *testing.T) {
 	b := NewBoard()
-	ship := mustShip(t, Destroyer, 0, 0, Horizontal)
+	ship := mustShip(t, Frigate, 0, 0, Horizontal)
 	_ = b.PlaceShip(ship)
 
 	_, _ = b.ReceiveShot(Point{5, 5})
@@ -171,11 +175,15 @@ func TestReceiveShotOutOfBounds(t *testing.T) {
 func TestAllShipsSunk(t *testing.T) {
 	b := NewBoard()
 	ships := []*Ship{
-		mustShip(t, Carrier, 0, 0, Horizontal),
-		mustShip(t, Battleship, 0, 2, Horizontal),
+		mustShip(t, Battleship, 0, 0, Horizontal),
+		mustShip(t, Cruiser, 0, 2, Horizontal),
 		mustShip(t, Cruiser, 0, 4, Horizontal),
-		mustShip(t, Submarine, 0, 6, Horizontal),
-		mustShip(t, Destroyer, 0, 8, Horizontal),
+		mustShip(t, Frigate, 0, 6, Horizontal),
+		mustShip(t, Frigate, 5, 6, Horizontal),
+		mustShip(t, Patrol, 0, 8, Horizontal),
+		mustShip(t, Patrol, 2, 8, Horizontal),
+		mustShip(t, Patrol, 4, 8, Horizontal),
+		mustShip(t, Patrol, 6, 8, Horizontal),
 	}
 	for _, s := range ships {
 		_ = b.PlaceShip(s)
@@ -201,7 +209,7 @@ func TestAllShipsSunk(t *testing.T) {
 
 func TestBoardDeepCopy(t *testing.T) {
 	b := NewBoard()
-	ship := mustShip(t, Destroyer, 0, 0, Horizontal)
+	ship := mustShip(t, Frigate, 0, 0, Horizontal)
 	_ = b.PlaceShip(ship)
 	_, _ = b.ReceiveShot(Point{0, 0})
 

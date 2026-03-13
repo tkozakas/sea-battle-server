@@ -3,22 +3,27 @@ package domain
 type ShipType string
 
 const (
-	Carrier    ShipType = "Carrier"
-	Battleship ShipType = "Battleship"
+	Patrol     ShipType = "Patrol"
+	Frigate    ShipType = "Frigate"
 	Cruiser    ShipType = "Cruiser"
-	Submarine  ShipType = "Submarine"
-	Destroyer  ShipType = "Destroyer"
+	Battleship ShipType = "Battleship"
 )
 
 var ShipSize = map[ShipType]int{
-	Carrier:    5,
-	Battleship: 4,
+	Patrol:     1,
+	Frigate:    2,
 	Cruiser:    3,
-	Submarine:  3,
-	Destroyer:  2,
+	Battleship: 4,
 }
 
-var RequiredShips = []ShipType{Carrier, Battleship, Cruiser, Submarine, Destroyer}
+var RequiredShipCounts = map[ShipType]int{
+	Patrol:     4,
+	Frigate:    2,
+	Cruiser:    2,
+	Battleship: 1,
+}
+
+var TotalShipCount = 9
 
 type Orientation string
 

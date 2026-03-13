@@ -82,15 +82,15 @@ func (g *Game) PlaceShips(playerIndex int, ships []*Ship) error {
 }
 
 func validateShipSet(ships []*Ship) error {
-	if len(ships) != len(RequiredShips) {
+	if len(ships) != TotalShipCount {
 		return ErrInvalidShipSet
 	}
 	counts := make(map[ShipType]int)
 	for _, s := range ships {
 		counts[s.Type]++
 	}
-	for _, required := range RequiredShips {
-		if counts[required] != 1 {
+	for shipType, required := range RequiredShipCounts {
+		if counts[shipType] != required {
 			return ErrInvalidShipSet
 		}
 	}

@@ -87,7 +87,7 @@ func TestServerMessageFireResultWithSunkShip(t *testing.T) {
 		Y:      5,
 		Result: "sunk",
 		SunkShip: &transport.SunkShipInfo{
-			Type: "Destroyer",
+			Type: "Frigate",
 			Cells: []transport.PointMsg{
 				{X: 2, Y: 5},
 				{X: 3, Y: 5},
@@ -116,8 +116,8 @@ func TestServerMessageFireResultWithSunkShip(t *testing.T) {
 	if payload.SunkShip == nil {
 		t.Fatal("expected sunk ship info, got nil")
 	}
-	if payload.SunkShip.Type != "Destroyer" {
-		t.Errorf("expected Destroyer, got %s", payload.SunkShip.Type)
+	if payload.SunkShip.Type != "Frigate" {
+		t.Errorf("expected Frigate, got %s", payload.SunkShip.Type)
 	}
 	if len(payload.SunkShip.Cells) != 2 {
 		t.Errorf("expected 2 cells, got %d", len(payload.SunkShip.Cells))

@@ -15,28 +15,28 @@ func TestNewShip(t *testing.T) {
 		wantCells   []Point
 	}{
 		{
-			name:     "Carrier horizontal",
-			shipType: Carrier, origin: Point{0, 0}, orientation: Horizontal,
-			wantSize:  5,
-			wantCells: []Point{{0, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 0}},
+			name:     "Patrol horizontal",
+			shipType: Patrol, origin: Point{0, 0}, orientation: Horizontal,
+			wantSize:  1,
+			wantCells: []Point{{0, 0}},
 		},
 		{
-			name:     "Carrier vertical",
-			shipType: Carrier, origin: Point{0, 0}, orientation: Vertical,
-			wantSize:  5,
-			wantCells: []Point{{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}},
+			name:     "Patrol vertical",
+			shipType: Patrol, origin: Point{0, 0}, orientation: Vertical,
+			wantSize:  1,
+			wantCells: []Point{{0, 0}},
 		},
 		{
-			name:     "Battleship horizontal",
-			shipType: Battleship, origin: Point{0, 0}, orientation: Horizontal,
-			wantSize:  4,
-			wantCells: []Point{{0, 0}, {1, 0}, {2, 0}, {3, 0}},
+			name:     "Frigate horizontal",
+			shipType: Frigate, origin: Point{0, 0}, orientation: Horizontal,
+			wantSize:  2,
+			wantCells: []Point{{0, 0}, {1, 0}},
 		},
 		{
-			name:     "Battleship vertical",
-			shipType: Battleship, origin: Point{0, 0}, orientation: Vertical,
-			wantSize:  4,
-			wantCells: []Point{{0, 0}, {0, 1}, {0, 2}, {0, 3}},
+			name:     "Frigate vertical",
+			shipType: Frigate, origin: Point{0, 0}, orientation: Vertical,
+			wantSize:  2,
+			wantCells: []Point{{0, 0}, {0, 1}},
 		},
 		{
 			name:     "Cruiser horizontal",
@@ -51,28 +51,16 @@ func TestNewShip(t *testing.T) {
 			wantCells: []Point{{0, 0}, {0, 1}, {0, 2}},
 		},
 		{
-			name:     "Submarine horizontal",
-			shipType: Submarine, origin: Point{0, 0}, orientation: Horizontal,
-			wantSize:  3,
-			wantCells: []Point{{0, 0}, {1, 0}, {2, 0}},
+			name:     "Battleship horizontal",
+			shipType: Battleship, origin: Point{0, 0}, orientation: Horizontal,
+			wantSize:  4,
+			wantCells: []Point{{0, 0}, {1, 0}, {2, 0}, {3, 0}},
 		},
 		{
-			name:     "Submarine vertical",
-			shipType: Submarine, origin: Point{0, 0}, orientation: Vertical,
-			wantSize:  3,
-			wantCells: []Point{{0, 0}, {0, 1}, {0, 2}},
-		},
-		{
-			name:     "Destroyer horizontal",
-			shipType: Destroyer, origin: Point{0, 0}, orientation: Horizontal,
-			wantSize:  2,
-			wantCells: []Point{{0, 0}, {1, 0}},
-		},
-		{
-			name:     "Destroyer vertical",
-			shipType: Destroyer, origin: Point{0, 0}, orientation: Vertical,
-			wantSize:  2,
-			wantCells: []Point{{0, 0}, {0, 1}},
+			name:     "Battleship vertical",
+			shipType: Battleship, origin: Point{0, 0}, orientation: Vertical,
+			wantSize:  4,
+			wantCells: []Point{{0, 0}, {0, 1}, {0, 2}, {0, 3}},
 		},
 	}
 
@@ -106,7 +94,7 @@ func TestNewShipInvalidType(t *testing.T) {
 }
 
 func TestShipHit(t *testing.T) {
-	ship, err := NewShip(Destroyer, Point{3, 3}, Horizontal)
+	ship, err := NewShip(Frigate, Point{3, 3}, Horizontal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +108,7 @@ func TestShipHit(t *testing.T) {
 }
 
 func TestShipHitAlreadyHit(t *testing.T) {
-	ship, err := NewShip(Destroyer, Point{3, 3}, Horizontal)
+	ship, err := NewShip(Frigate, Point{3, 3}, Horizontal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +121,7 @@ func TestShipHitAlreadyHit(t *testing.T) {
 }
 
 func TestShipHitNotOnShip(t *testing.T) {
-	ship, err := NewShip(Destroyer, Point{3, 3}, Horizontal)
+	ship, err := NewShip(Frigate, Point{3, 3}, Horizontal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +132,7 @@ func TestShipHitNotOnShip(t *testing.T) {
 }
 
 func TestShipIsSunk(t *testing.T) {
-	ship, err := NewShip(Destroyer, Point{0, 0}, Horizontal)
+	ship, err := NewShip(Frigate, Point{0, 0}, Horizontal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +153,7 @@ func TestShipIsSunk(t *testing.T) {
 }
 
 func TestShipAdjacentCells(t *testing.T) {
-	ship, err := NewShip(Destroyer, Point{2, 2}, Horizontal)
+	ship, err := NewShip(Frigate, Point{2, 2}, Horizontal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +201,7 @@ func TestShipAdjacentCells(t *testing.T) {
 }
 
 func TestShipDeepCopy(t *testing.T) {
-	ship, err := NewShip(Destroyer, Point{0, 0}, Horizontal)
+	ship, err := NewShip(Frigate, Point{0, 0}, Horizontal)
 	if err != nil {
 		t.Fatal(err)
 	}

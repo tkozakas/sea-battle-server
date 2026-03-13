@@ -520,11 +520,10 @@ func (h *Handler) sendTo(code string, playerIndex int, msg ServerMessage) {
 }
 
 var shipTypeNorm = map[string]domain.ShipType{
-	"carrier":    domain.Carrier,
-	"battleship": domain.Battleship,
+	"patrol":     domain.Patrol,
+	"frigate":    domain.Frigate,
 	"cruiser":    domain.Cruiser,
-	"submarine":  domain.Submarine,
-	"destroyer":  domain.Destroyer,
+	"battleship": domain.Battleship,
 }
 
 var orientationNorm = map[string]domain.Orientation{
