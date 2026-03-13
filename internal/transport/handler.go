@@ -268,6 +268,8 @@ func (h *Handler) handleClientMessage(ctx context.Context, conn *websocket.Conn,
 		h.handlePlaceShips(ctx, conn, code, playerIndex, msg.Payload)
 	case "fire":
 		h.handleFire(ctx, conn, code, playerIndex, msg.Payload)
+	case "request_rematch":
+		h.handleRequestRematch(ctx, conn, code, playerIndex)
 	default:
 		_ = wsjson.Write(ctx, conn, NewServerMessage("error", ErrorMsg{
 			Code:    "unknown_message",
@@ -402,6 +404,27 @@ func (h *Handler) broadcastFireResult(code string, playerIndex int, target domai
 	if game != nil && !game.IsOver() {
 		h.startTurnTimer(code, game.CurrentTurn, deadline)
 	}
+}
+
+func (h *Handler) handleRequestRematch(ctx context.Context, conn *websocket.Conn, code string, playerIndex int) {
+	bothReady, err := h.service.RequestRematch(code, playerIndex)
+	if err != nil {
+		_ = wsjson.Write(ctx, conn, NewServerMessage("error", ErrorMsg{
+			Code:    "rematch_error",
+			Message: err.Error(),
+		}))
+		return
+	}
+
+	if !bothReady {
+		opponentIndex := 1 - playerIndex
+		h.sendTo(code, opponentIndex, NewServerMessage("rematch_requested", RematchRequestedMsg{
+			PlayerIndex: playerIndex,
+		}))
+		return
+	}
+
+	h.broadcast(code, NewServerMessage("rematch_started", RematchStartedMsg{}))
 }
 
 func (h *Handler) startTurnTimer(code string, playerIndex int, deadline time.Time) {

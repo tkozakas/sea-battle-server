@@ -14,4 +14,5 @@ var (
 	ErrAlreadyReady     = errors.New("player is already ready")
 	ErrInvalidShipSet   = errors.New("invalid ship set")
 	ErrGameNotFound     = errors.New("game not found")
+	ErrAlreadyRequested = errors.New("rematch already requested")
 )

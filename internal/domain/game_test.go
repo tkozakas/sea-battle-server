@@ -259,6 +259,90 @@ func TestGameFullGame(t *testing.T) {
 	}
 }
 
+func setupGameOver(t *testing.T) *Game {
+	t.Helper()
+	g := setupPlayingGame(t)
+	for _, cell := range validShipSet(t) {
+		for _, pt := range cell.Cells() {
+			if g.IsOver() {
+				break
+			}
+			if _, err := g.Fire(0, pt); err != nil {
+				t.Fatalf("Fire failed: %v", err)
+			}
+		}
+	}
+	if g.State != StateGameOver {
+		t.Fatalf("expected StateGameOver, got %s", g.State)
+	}
+	return g
+}
+
+func TestRequestRematch(t *testing.T) {
+	g := setupGameOver(t)
+
+	bothReady, err := g.RequestRematch(0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bothReady {
+		t.Error("expected false when only one player requested")
+	}
+
+	bothReady, err = g.RequestRematch(1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !bothReady {
+		t.Error("expected true when both players requested")
+	}
+}
+
+func TestRequestRematchWrongState(t *testing.T) {
+	g := setupPlayingGame(t)
+
+	_, err := g.RequestRematch(0)
+	if err != ErrInvalidState {
+		t.Errorf("expected ErrInvalidState, got %v", err)
+	}
+}
+
+func TestStartRematch(t *testing.T) {
+	g := setupGameOver(t)
+	_, _ = g.RequestRematch(0)
+	_, _ = g.RequestRematch(1)
+
+	g.StartRematch()
+
+	if g.State != StatePlacing {
+		t.Errorf("State = %q, want %q", g.State, StatePlacing)
+	}
+	if g.Winner != -1 {
+		t.Errorf("Winner = %d, want -1", g.Winner)
+	}
+	if len(g.MoveHistory) != 0 {
+		t.Errorf("MoveHistory should be empty, got %d entries", len(g.MoveHistory))
+	}
+	if g.RematchRequests[0] || g.RematchRequests[1] {
+		t.Error("RematchRequests should be cleared")
+	}
+	for i, p := range g.Players {
+		if p == nil {
+			continue
+		}
+		if p.Ready {
+			t.Errorf("Players[%d] should not be ready", i)
+		}
+		for y := range p.Board.Grid {
+			for x, cell := range p.Board.Grid[y] {
+				if cell != CellEmpty {
+					t.Errorf("Players[%d].Board.Grid[%d][%d] = %v, want CellEmpty", i, y, x, cell)
+				}
+			}
+		}
+	}
+}
+
 func TestGameDeepCopy(t *testing.T) {
 	g := setupPlayingGame(t)
 

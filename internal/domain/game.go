@@ -20,14 +20,15 @@ type Move struct {
 }
 
 type Game struct {
-	ID          string
-	State       GameState
-	Players     [2]*Player
-	CurrentTurn int
-	Winner      int
-	MoveHistory []Move
-	CreatedAt   time.Time
-	FinishedAt  time.Time
+	ID              string
+	State           GameState
+	Players         [2]*Player
+	CurrentTurn     int
+	Winner          int
+	MoveHistory     []Move
+	CreatedAt       time.Time
+	FinishedAt      time.Time
+	RematchRequests [2]bool
 }
 
 func NewGame(id, creatorID string) *Game {
@@ -136,18 +137,42 @@ func (g *Game) Fire(playerIndex int, target Point) (*ShotResult, error) {
 	return &result, nil
 }
 
+func (g *Game) RequestRematch(playerIndex int) (bool, error) {
+	if g.State != StateGameOver {
+		return false, ErrInvalidState
+	}
+	g.RematchRequests[playerIndex] = true
+	return g.RematchRequests[0] && g.RematchRequests[1], nil
+}
+
+func (g *Game) StartRematch() {
+	g.State = StatePlacing
+	g.CurrentTurn = 0
+	g.Winner = -1
+	g.MoveHistory = nil
+	g.FinishedAt = time.Time{}
+	g.RematchRequests = [2]bool{}
+	for _, p := range g.Players {
+		if p != nil {
+			p.Board = NewBoard()
+			p.Ready = false
+		}
+	}
+}
+
 func (g *Game) IsOver() bool {
 	return g.State == StateGameOver || g.State == StateAbandoned
 }
 
 func (g *Game) DeepCopy() *Game {
 	ng := &Game{
-		ID:          g.ID,
-		State:       g.State,
-		CurrentTurn: g.CurrentTurn,
-		Winner:      g.Winner,
-		CreatedAt:   g.CreatedAt,
-		FinishedAt:  g.FinishedAt,
+		ID:              g.ID,
+		State:           g.State,
+		CurrentTurn:     g.CurrentTurn,
+		Winner:          g.Winner,
+		CreatedAt:       g.CreatedAt,
+		FinishedAt:      g.FinishedAt,
+		RematchRequests: g.RematchRequests,
 	}
 
 	for i, p := range g.Players {

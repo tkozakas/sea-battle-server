@@ -244,6 +244,75 @@ func allShipCells(ships []*domain.Ship) []domain.Point {
 	return pts
 }
 
+func setupGameOver(t *testing.T, svc *service.GameService) string {
+	t.Helper()
+	code, err := svc.CreateGame("player1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = svc.JoinGame(code, "player2")
+	_ = svc.PlaceShips(code, 0, validShips(0))
+	_ = svc.PlaceShips(code, 1, validShips(0))
+
+	targets := allShipCells(validShips(0))
+	for {
+		g, err := svc.GetGame(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if g.IsOver() {
+			break
+		}
+		var target domain.Point
+		found := false
+		for _, pt := range targets {
+			if g.Players[1].Board.IsValidTarget(pt) {
+				target = pt
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatal("no valid targets but game not over")
+		}
+		result, err := svc.Fire(code, 0, target)
+		if err != nil {
+			t.Fatalf("Fire failed: %v", err)
+		}
+		_ = result
+	}
+	return code
+}
+
+func TestRequestRematch(t *testing.T) {
+	svc := newGameService()
+	code := setupGameOver(t, svc)
+
+	bothReady, err := svc.RequestRematch(code, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bothReady {
+		t.Error("expected false when only one player requested")
+	}
+
+	bothReady, err = svc.RequestRematch(code, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !bothReady {
+		t.Error("expected true when both players requested")
+	}
+
+	game, err := svc.GetGame(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if game.State != domain.StatePlacing {
+		t.Errorf("expected StatePlacing after rematch, got %s", game.State)
+	}
+}
+
 func TestHandleDisconnect(t *testing.T) {
 	svc := newGameService()
 	code, err := svc.CreateGame("player1")

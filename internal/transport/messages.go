@@ -109,3 +109,9 @@ type ErrorMsg struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
+
+type RematchRequestedMsg struct {
+	PlayerIndex int `json:"player_index"`
+}
+
+type RematchStartedMsg struct{}

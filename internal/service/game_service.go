@@ -95,3 +95,21 @@ func (s *GameService) HandleReconnect(code string, playerID string) (*domain.Gam
 func (s *GameService) ActiveRoomCount() int {
 	return s.rooms.ActiveRoomCount()
 }
+
+func (s *GameService) RequestRematch(code string, playerIndex int) (bool, error) {
+	game, err := s.repo.FindByID(code)
+	if err != nil {
+		return false, err
+	}
+	bothReady, err := game.RequestRematch(playerIndex)
+	if err != nil {
+		return false, err
+	}
+	if bothReady {
+		game.StartRematch()
+	}
+	if err := s.repo.Save(game); err != nil {
+		return false, err
+	}
+	return bothReady, nil
+}
