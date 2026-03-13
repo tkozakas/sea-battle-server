@@ -166,7 +166,6 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 func buildGameStateMsg(game *domain.Game, playerIndex int) GameStateMsg {
 	opponentIndex := 1 - playerIndex
-	var currentTurnDeadline time.Time
 
 	opponentReady := false
 	if game.Players[opponentIndex] != nil {
@@ -176,10 +175,66 @@ func buildGameStateMsg(game *domain.Game, playerIndex int) GameStateMsg {
 	return GameStateMsg{
 		State:         string(game.State),
 		CurrentTurn:   game.CurrentTurn,
-		TurnDeadline:  currentTurnDeadline,
+		TurnDeadline:  time.Time{},
+		YourBoard:     serializeOwnBoard(game.Players[playerIndex].Board),
+		OpponentBoard: serializeOpponentBoard(game.Players[opponentIndex].Board),
+		YourShips:     serializeShips(game.Players[playerIndex].Board),
 		YourReady:     game.Players[playerIndex].Ready,
 		OpponentReady: opponentReady,
 	}
+}
+
+func serializeOwnBoard(board *domain.Board) [domain.BoardSize][domain.BoardSize]int {
+	var grid [domain.BoardSize][domain.BoardSize]int
+	for y := 0; y < domain.BoardSize; y++ {
+		for x := 0; x < domain.BoardSize; x++ {
+			grid[y][x] = int(board.Grid[y][x])
+		}
+	}
+	return grid
+}
+
+func serializeOpponentBoard(board *domain.Board) [domain.BoardSize][domain.BoardSize]int {
+	var grid [domain.BoardSize][domain.BoardSize]int
+	for y := 0; y < domain.BoardSize; y++ {
+		for x := 0; x < domain.BoardSize; x++ {
+			switch board.Grid[y][x] {
+			case domain.CellHit:
+				grid[y][x] = 2
+			case domain.CellMiss:
+				grid[y][x] = 1
+			case domain.CellSunk:
+				grid[y][x] = 3
+			default:
+				grid[y][x] = 0
+			}
+		}
+	}
+	return grid
+}
+
+type ShipInfo struct {
+	Type        string `json:"type"`
+	X           int    `json:"x"`
+	Y           int    `json:"y"`
+	Orientation string `json:"orientation"`
+}
+
+func serializeShips(board *domain.Board) []ShipInfo {
+	ships := make([]ShipInfo, 0, len(board.Ships))
+	for _, s := range board.Ships {
+		orientation := "horizontal"
+		if s.Orientation == domain.Vertical {
+			orientation = "vertical"
+		}
+		ships = append(ships, ShipInfo{
+			Type:        strings.ToLower(string(s.Type)),
+			X:           s.Origin.X,
+			Y:           s.Origin.Y,
+			Orientation: orientation,
+		})
+	}
+	return ships
 }
 
 func (h *Handler) resolvePlayer(code, playerID string) (*domain.Game, int, bool) {

@@ -3,6 +3,8 @@ package transport
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/tkozakas/sea-battle-server/internal/domain"
 )
 
 type ClientMessage struct {
@@ -46,14 +48,14 @@ type GameJoinedMsg struct {
 }
 
 type GameStateMsg struct {
-	State         string      `json:"state"`
-	YourBoard     interface{} `json:"your_board"`
-	OpponentBoard interface{} `json:"opponent_board"`
-	YourShips     interface{} `json:"your_ships"`
-	CurrentTurn   int         `json:"current_turn"`
-	TurnDeadline  time.Time   `json:"turn_deadline"`
-	YourReady     bool        `json:"your_ready"`
-	OpponentReady bool        `json:"opponent_ready"`
+	State         string                                  `json:"state"`
+	YourBoard     [domain.BoardSize][domain.BoardSize]int `json:"your_board"`
+	OpponentBoard [domain.BoardSize][domain.BoardSize]int `json:"opponent_board"`
+	YourShips     []ShipInfo                              `json:"your_ships"`
+	CurrentTurn   int                                     `json:"current_turn"`
+	TurnDeadline  time.Time                               `json:"turn_deadline"`
+	YourReady     bool                                    `json:"your_ready"`
+	OpponentReady bool                                    `json:"opponent_ready"`
 }
 
 type ShipsAcceptedMsg struct {
