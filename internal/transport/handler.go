@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -134,8 +135,17 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	newJoin := playerIndex == 1 && !reconnected
+
 	h.registerConn(code, playerIndex, conn)
 	defer h.unregisterConn(code, playerIndex, conn)
+
+	if newJoin {
+		h.broadcast(code, NewServerMessage("game_joined", GameJoinedMsg{
+			PlayerID:          playerID,
+			OpponentConnected: true,
+		}))
+	}
 
 	if reconnected {
 		reconnectedGame, idx, err := h.service.HandleReconnect(code, playerID)
@@ -486,14 +496,31 @@ func (h *Handler) sendTo(code string, playerIndex int, msg ServerMessage) {
 	}
 }
 
+var shipTypeNorm = map[string]domain.ShipType{
+	"carrier":    domain.Carrier,
+	"battleship": domain.Battleship,
+	"cruiser":    domain.Cruiser,
+	"submarine":  domain.Submarine,
+	"destroyer":  domain.Destroyer,
+}
+
+var orientationNorm = map[string]domain.Orientation{
+	"horizontal": domain.Horizontal,
+	"vertical":   domain.Vertical,
+}
+
 func buildShips(placements []ShipPlacement) ([]*domain.Ship, error) {
 	ships := make([]*domain.Ship, 0, len(placements))
 	for _, p := range placements {
-		orientation := domain.Horizontal
-		if p.Orientation == string(domain.Vertical) {
-			orientation = domain.Vertical
+		shipType, ok := shipTypeNorm[strings.ToLower(p.Type)]
+		if !ok {
+			shipType = domain.ShipType(p.Type)
 		}
-		ship, err := domain.NewShip(domain.ShipType(p.Type), domain.Point{X: p.X, Y: p.Y}, orientation)
+		orientation, ok := orientationNorm[strings.ToLower(p.Orientation)]
+		if !ok {
+			orientation = domain.Horizontal
+		}
+		ship, err := domain.NewShip(shipType, domain.Point{X: p.X, Y: p.Y}, orientation)
 		if err != nil {
 			return nil, err
 		}
