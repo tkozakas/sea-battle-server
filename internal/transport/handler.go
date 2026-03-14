@@ -20,15 +20,13 @@ import (
 	"github.com/tkozakas/sea-battle-server/internal/service"
 )
 
-type connEntry struct {
-	conn *websocket.Conn
-}
+var ErrUnknownOrientation = errors.New("unknown orientation")
 
 type Handler struct {
 	service        *service.GameService
 	mu             sync.RWMutex
 	timerMu        sync.Mutex
-	connections    map[string][2]*connEntry
+	connections    map[string][2]*websocket.Conn
 	turnTimers     map[string]*time.Timer
 	turnTimeout    time.Duration
 	reconnectGrace time.Duration
@@ -40,7 +38,7 @@ type Handler struct {
 func NewHandler(svc *service.GameService, cfg *config.Config) *Handler {
 	return &Handler{
 		service:        svc,
-		connections:    make(map[string][2]*connEntry),
+		connections:    make(map[string][2]*websocket.Conn),
 		turnTimers:     make(map[string]*time.Timer),
 		turnTimeout:    cfg.TurnTimeout,
 		reconnectGrace: cfg.ReconnectGrace,
@@ -129,7 +127,7 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	game, playerIndex, reconnected := h.resolvePlayer(code, playerID)
 	if game == nil {
-		if err := conn.Close(websocket.StatusNormalClosure, "game not found"); err != nil {
+		if err := conn.Close(websocket.StatusNormalClosure, "game not available"); err != nil {
 			slog.Debug("websocket close failed", "error", err)
 		}
 		return
@@ -168,8 +166,11 @@ func buildGameStateMsg(game *domain.Game, playerIndex int) GameStateMsg {
 	opponentIndex := 1 - playerIndex
 
 	opponentReady := false
+	var opponentBoard [domain.BoardSize][domain.BoardSize]int
+
 	if game.Players[opponentIndex] != nil {
 		opponentReady = game.Players[opponentIndex].Ready
+		opponentBoard = serializeOpponentBoard(game.Players[opponentIndex].Board)
 	}
 
 	return GameStateMsg{
@@ -177,7 +178,7 @@ func buildGameStateMsg(game *domain.Game, playerIndex int) GameStateMsg {
 		CurrentTurn:   game.CurrentTurn,
 		TurnDeadline:  time.Time{},
 		YourBoard:     serializeOwnBoard(game.Players[playerIndex].Board),
-		OpponentBoard: serializeOpponentBoard(game.Players[opponentIndex].Board),
+		OpponentBoard: opponentBoard,
 		YourShips:     serializeShips(game.Players[playerIndex].Board),
 		YourReady:     game.Players[playerIndex].Ready,
 		OpponentReady: opponentReady,
@@ -245,8 +246,15 @@ func (h *Handler) resolvePlayer(code, playerID string) (*domain.Game, int, bool)
 
 	for i, p := range game.Players {
 		if p != nil && p.ID == playerID {
+			if game.IsOver() && !p.Connected {
+				return nil, -1, false
+			}
 			return game, i, !p.Connected
 		}
+	}
+
+	if game.State != domain.StateWaiting {
+		return nil, -1, false
 	}
 
 	if game.Players[1] == nil {
@@ -264,23 +272,31 @@ func (h *Handler) registerConn(code string, playerIndex int, conn *websocket.Con
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	entries := h.connections[code]
-	entries[playerIndex] = &connEntry{conn: conn}
+	entries[playerIndex] = conn
 	h.connections[code] = entries
 }
 
 func (h *Handler) unregisterConn(code string, playerIndex int, conn *websocket.Conn) {
 	h.mu.Lock()
 	entries := h.connections[code]
-	if entries[playerIndex] != nil && entries[playerIndex].conn == conn {
+	if entries[playerIndex] != nil && entries[playerIndex] == conn {
 		entries[playerIndex] = nil
 	}
+	bothNil := entries[0] == nil && entries[1] == nil
 	h.connections[code] = entries
+	if bothNil {
+		delete(h.connections, code)
+	}
 	h.mu.Unlock()
 
 	_ = h.service.HandleDisconnect(code, playerIndex)
 
 	game, err := h.service.GetGame(code)
-	if err != nil || game.IsOver() {
+	if err != nil {
+		return
+	}
+	if game.IsOver() {
+		h.cancelTurnTimer(code)
 		return
 	}
 
@@ -578,13 +594,13 @@ func (h *Handler) broadcast(code string, msg ServerMessage) {
 	entries := h.connections[code]
 	h.mu.RUnlock()
 
-	for i, entry := range entries {
-		if entry != nil {
+	for i, conn := range entries {
+		if conn != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), h.writeTimeout)
-			defer cancel()
-			if err := wsjson.Write(ctx, entry.conn, msg); err != nil {
+			if err := wsjson.Write(ctx, conn, msg); err != nil {
 				slog.Error("broadcast failed", "playerIndex", i, "error", err)
 			}
+			cancel()
 		}
 	}
 }
@@ -594,14 +610,14 @@ func (h *Handler) sendTo(code string, playerIndex int, msg ServerMessage) {
 	entries := h.connections[code]
 	h.mu.RUnlock()
 
-	entry := entries[playerIndex]
-	if entry == nil {
+	conn := entries[playerIndex]
+	if conn == nil {
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), h.writeTimeout)
 	defer cancel()
-	if err := wsjson.Write(ctx, entry.conn, msg); err != nil {
+	if err := wsjson.Write(ctx, conn, msg); err != nil {
 		slog.Error("sendTo failed", "playerIndex", playerIndex, "error", err)
 	}
 }
@@ -627,7 +643,7 @@ func buildShips(placements []ShipPlacement) ([]*domain.Ship, error) {
 		}
 		orientation, ok := orientationNorm[strings.ToLower(p.Orientation)]
 		if !ok {
-			orientation = domain.Horizontal
+			return nil, ErrUnknownOrientation
 		}
 		ship, err := domain.NewShip(shipType, domain.Point{X: p.X, Y: p.Y}, orientation)
 		if err != nil {

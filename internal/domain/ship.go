@@ -23,7 +23,7 @@ var RequiredShipCounts = map[ShipType]int{
 	Battleship: 1,
 }
 
-var TotalShipCount = 9
+const TotalShipCount = 9
 
 type Orientation string
 

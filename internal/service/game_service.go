@@ -71,6 +71,9 @@ func (s *GameService) HandleDisconnect(code string, playerIndex int) error {
 	if err != nil {
 		return err
 	}
+	if game.Players[playerIndex] == nil {
+		return nil
+	}
 	game.Players[playerIndex].Connected = false
 	return s.repo.Save(game)
 }

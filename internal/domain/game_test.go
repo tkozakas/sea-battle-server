@@ -134,8 +134,7 @@ func TestGamePlaceShipsRollbackOnInvalidPlacement(t *testing.T) {
 
 	overlappingShips := []*Ship{
 		mustShip(t, Battleship, 0, 0, Horizontal),
-		mustShip(t, Battleship, 0, 0, Horizontal),
-		mustShip(t, Cruiser, 0, 4, Horizontal),
+		mustShip(t, Cruiser, 0, 0, Horizontal),
 		mustShip(t, Cruiser, 0, 6, Horizontal),
 		mustShip(t, Frigate, 0, 8, Horizontal),
 		mustShip(t, Frigate, 5, 8, Horizontal),

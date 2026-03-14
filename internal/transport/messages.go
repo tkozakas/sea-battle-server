@@ -110,11 +110,6 @@ type OpponentDisconnectedMsg struct {
 
 type OpponentReconnectedMsg struct{}
 
-type OpponentLeftMsg struct {
-	Winner string `json:"winner"`
-	Reason string `json:"reason"`
-}
-
 type ErrorMsg struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
