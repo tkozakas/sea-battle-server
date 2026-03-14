@@ -2,10 +2,6 @@
 
 Backend for [Sea Battle](https://github.com/tkozakas/sea-battle-web), an online multiplayer battleship game. Built with Go, WebSockets, and chi router.
 
-## Related
-
-- [Sea Battle Web](https://github.com/tkozakas/sea-battle-web) — Web client
-
 ## Run locally
 
 ```
