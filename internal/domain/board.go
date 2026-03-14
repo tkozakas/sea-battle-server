@@ -1,10 +1,19 @@
 package domain
 
-type ShotResult struct {
+type ExplosionCell struct {
+	Point    Point
 	Hit      bool
 	Sunk     bool
 	ShipType ShipType
 	Cells    []Point
+}
+
+type ShotResult struct {
+	Hit        bool
+	Sunk       bool
+	ShipType   ShipType
+	Cells      []Point
+	Explosions []ExplosionCell
 }
 
 type Board struct {
@@ -57,11 +66,13 @@ func (b *Board) ReceiveShot(p Point) (ShotResult, error) {
 			_ = ship.Hit(p)
 			if ship.IsSunk() {
 				markSunk(b, ship)
+				explosions := explode(b, ship)
 				return ShotResult{
-					Hit:      true,
-					Sunk:     true,
-					ShipType: ship.Type,
-					Cells:    ship.Cells(),
+					Hit:        true,
+					Sunk:       true,
+					ShipType:   ship.Type,
+					Cells:      ship.Cells(),
+					Explosions: explosions,
 				}, nil
 			}
 			b.Grid[p.Y][p.X] = CellHit
@@ -71,6 +82,69 @@ func (b *Board) ReceiveShot(p Point) (ShotResult, error) {
 
 	b.Grid[p.Y][p.X] = CellMiss
 	return ShotResult{Hit: false}, nil
+}
+
+func explode(b *Board, sunkShip *Ship) []ExplosionCell {
+	var explosions []ExplosionCell
+	queue := []*Ship{sunkShip}
+	exploded := make(map[*Ship]bool)
+	exploded[sunkShip] = true
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		for _, adj := range current.AdjacentCells() {
+			if !inBounds(adj) {
+				continue
+			}
+			cell := b.Grid[adj.Y][adj.X]
+			if cell == CellHit || cell == CellMiss || cell == CellSunk {
+				continue
+			}
+
+			target := b.shipAt(adj)
+			if target != nil {
+				_ = target.Hit(adj)
+				if target.IsSunk() {
+					markSunk(b, target)
+					explosions = append(explosions, ExplosionCell{
+						Point:    adj,
+						Hit:      true,
+						Sunk:     true,
+						ShipType: target.Type,
+						Cells:    target.Cells(),
+					})
+					if !exploded[target] {
+						exploded[target] = true
+						queue = append(queue, target)
+					}
+				} else {
+					b.Grid[adj.Y][adj.X] = CellHit
+					explosions = append(explosions, ExplosionCell{
+						Point: adj,
+						Hit:   true,
+					})
+				}
+			} else {
+				b.Grid[adj.Y][adj.X] = CellMiss
+				explosions = append(explosions, ExplosionCell{
+					Point: adj,
+					Hit:   false,
+				})
+			}
+		}
+	}
+	return explosions
+}
+
+func (b *Board) shipAt(p Point) *Ship {
+	for _, ship := range b.Ships {
+		if ship.containsCell(p) {
+			return ship
+		}
+	}
+	return nil
 }
 
 func markSunk(b *Board, ship *Ship) {

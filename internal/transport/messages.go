@@ -82,13 +82,21 @@ type PointMsg struct {
 	Y int `json:"y"`
 }
 
+type ExplosionCellMsg struct {
+	X        int           `json:"x"`
+	Y        int           `json:"y"`
+	Hit      bool          `json:"hit"`
+	SunkShip *SunkShipInfo `json:"sunk_ship,omitempty"`
+}
+
 type FireResultMsg struct {
-	X            int           `json:"x"`
-	Y            int           `json:"y"`
-	Result       string        `json:"result"`
-	SunkShip     *SunkShipInfo `json:"sunk_ship,omitempty"`
-	NextTurn     string        `json:"next_turn"`
-	TurnDeadline time.Time     `json:"turn_deadline"`
+	X            int                `json:"x"`
+	Y            int                `json:"y"`
+	Result       string             `json:"result"`
+	SunkShip     *SunkShipInfo      `json:"sunk_ship,omitempty"`
+	Explosions   []ExplosionCellMsg `json:"explosions,omitempty"`
+	NextTurn     string             `json:"next_turn"`
+	TurnDeadline time.Time          `json:"turn_deadline"`
 }
 
 type GameOverMsg struct {

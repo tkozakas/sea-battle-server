@@ -319,6 +319,8 @@ func (h *Handler) readLoop(ctx context.Context, conn *websocket.Conn, code strin
 
 func (h *Handler) handleClientMessage(ctx context.Context, conn *websocket.Conn, code string, playerIndex int, msg ClientMessage) {
 	switch msg.Type {
+	case "ping":
+		return
 	case "place_ships":
 		h.handlePlaceShips(ctx, conn, code, playerIndex, msg.Payload)
 	case "fire":
@@ -420,6 +422,8 @@ func (h *Handler) broadcastFireResult(code string, playerIndex int, target domai
 		}
 	}
 
+	explosions := buildExplosionMsgs(result.Explosions)
+
 	if game != nil && game.IsOver() {
 		winnerID := ""
 		if game.Winner >= 0 && game.Players[game.Winner] != nil {
@@ -430,6 +434,7 @@ func (h *Handler) broadcastFireResult(code string, playerIndex int, target domai
 			Y:            target.Y,
 			Result:       resultStr,
 			SunkShip:     sunkInfo,
+			Explosions:   explosions,
 			NextTurn:     "",
 			TurnDeadline: time.Time{},
 		}))
@@ -452,6 +457,7 @@ func (h *Handler) broadcastFireResult(code string, playerIndex int, target domai
 		Y:            target.Y,
 		Result:       resultStr,
 		SunkShip:     sunkInfo,
+		Explosions:   explosions,
 		NextTurn:     nextPlayerID,
 		TurnDeadline: deadline,
 	}))
@@ -459,6 +465,32 @@ func (h *Handler) broadcastFireResult(code string, playerIndex int, target domai
 	if game != nil && !game.IsOver() {
 		h.startTurnTimer(code, game.CurrentTurn, deadline)
 	}
+}
+
+func buildExplosionMsgs(explosions []domain.ExplosionCell) []ExplosionCellMsg {
+	if len(explosions) == 0 {
+		return nil
+	}
+	msgs := make([]ExplosionCellMsg, len(explosions))
+	for i, e := range explosions {
+		msg := ExplosionCellMsg{
+			X:   e.Point.X,
+			Y:   e.Point.Y,
+			Hit: e.Hit,
+		}
+		if e.Sunk {
+			cells := make([]PointMsg, len(e.Cells))
+			for j, c := range e.Cells {
+				cells[j] = PointMsg{X: c.X, Y: c.Y}
+			}
+			msg.SunkShip = &SunkShipInfo{
+				Type:  string(e.ShipType),
+				Cells: cells,
+			}
+		}
+		msgs[i] = msg
+	}
+	return msgs
 }
 
 func (h *Handler) handleRequestRematch(ctx context.Context, conn *websocket.Conn, code string, playerIndex int) {
