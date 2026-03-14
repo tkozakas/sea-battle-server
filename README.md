@@ -18,12 +18,6 @@ docker compose up
 
 Server starts on `http://localhost:8080` by default. See `env.template` for configuration options.
 
-## Test
-
-```
-go test ./... -race
-```
-
 ## License
 
 [MIT](LICENSE)
