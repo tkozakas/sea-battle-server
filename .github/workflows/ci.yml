@@ -85,3 +85,17 @@ jobs:
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:linux-amd64 \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:linux-arm64
+
+  deploy:
+    name: Trigger Deploy
+    needs: manifest
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger webhook
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        if: env.DEPLOY_TOKEN != ''
+        run: |
+          curl -sf -X POST -H "Authorization: ${{ secrets.DEPLOY_TOKEN }}" \
+            https://ghstats.fun/hooks/deploy-sea-battle
