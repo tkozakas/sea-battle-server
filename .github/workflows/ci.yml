@@ -95,7 +95,8 @@ jobs:
       - name: Trigger webhook
         env:
           DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
-        if: env.DEPLOY_TOKEN != ''
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+        if: env.DEPLOY_TOKEN != '' && env.DEPLOY_URL != ''
         run: |
           curl -sf -X POST -H "Authorization: ${{ secrets.DEPLOY_TOKEN }}" \
-            https://ghstats.fun/hooks/deploy-sea-battle
+            "${{ secrets.DEPLOY_URL }}"
